@@ -35,6 +35,12 @@ import xml.etree.cElementTree as ElementTree
 from datetime import datetime
 import time
 import math
+import gzip
+import StringIO
+
+opener = urllib2.build_opener()
+opener.addheaders = [('User-Agent', 'make_changeset/0.0.1')]
+urllib2.install_opener(opener)
 
 ''' Some support functions '''
 def retry(max_attempts, *exception_types):
@@ -129,3 +135,29 @@ if __name__ == "__main__":
     
     start_sequence = sequence_before_date(isoToTimestamp(cs.get('created_at')),latest_sequence)
     end_sequence = sequence_after_date(isoToTimestamp(cs.get('closed_at')),start_sequence)
+    
+    output_root = ElementTree.Element('osmChange')
+    output_root.set('version','0.6')
+    output_root.set('generator','make_changeset')
+    action_element = None
+
+    print 'Sequence range is %d to %d' % (start_sequence, end_sequence)
+    for sequence in range(start_sequence,end_sequence):
+        print 'Parsing %s'%sequence
+        sqnStr = str(int(sequence)).zfill(9)
+        
+        diff_xml = gzip.GzipFile(fileobj=StringIO.StringIO(retry_open(opts.replication_url + '%s/%s/%s.osc.gz' % (sqnStr[0:3], sqnStr[3:6], sqnStr[6:9])).read()))
+        diff_tree = ElementTree.parse(diff_xml)
+        
+        for action in diff_tree.getroot():
+            for object in action:
+                if opts.changeset == int(object.get('changeset')):
+                    if action_element == None or action_element.tag != action.tag:
+                        action_element = ElementTree.Element(action.tag)
+                        action_element.tail='\n'
+                        output_root.append(action_element)
+                    action_element.append(object)
+                
+                
+    output_tree = ElementTree.ElementTree(output_root)
+    output_tree.write(str(opts.changeset)+'.osc')
