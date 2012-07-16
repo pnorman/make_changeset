@@ -111,7 +111,7 @@ if __name__ == "__main__":
     
     parser.add_argument('changeset', type=int, help='The changeset to generate')
     
-    parser.add_argument('--replication-url', help='Base URL of replication diffs', default='http://merry.paulnorman.ca:7201/minute-redaction-replicate/')
+    parser.add_argument('--replication-url', help='Base URL of replication diffs', default='http://planet.osm.org/redaction-period/minute-replicate/')
     parser.add_argument('--api-url', help='Base URL of the API', default='http://api.openstreetmap.org/')
     parser.add_argument('--retry', help='Number of times to retry a failed download', default=5)
     opts=parser.parse_args()
