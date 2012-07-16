@@ -31,7 +31,12 @@ SOFTWARE.
 
 import argparse
 import urllib2
+import xml.etree.cElementTree as ElementTree
+from datetime import datetime
+import time
+import math
 
+''' Some support functions '''
 def retry(max_attempts, *exception_types):
     def tryIt(func):
         def f(*args, **kwargs):
@@ -50,8 +55,41 @@ def retry_open(url):
     return urllib2.urlopen(url)
 
 def isoToTimestamp(isotime):
-    t = datetime.strptime(isotime, "%Y-%m-%dT%H:%M:%SZ")
+    t = datetime.strptime(isotime, '%Y-%m-%dT%H:%M:%SZ')
     return time.mktime(t.timetuple())
+    
+def print_cs_info(cs):
+    print 'Found changeset ' + cs.get('id') + ' by ' + cs.get('user') + ' (' + cs.get('uid') + ')'
+    print 'Changeset spans ' + cs.get('created_at') + ' to ' + cs.get('closed_at')
+
+
+def sequence_before_date(target, startsequence):
+    sequence = startsequence
+    currentdate = date_from_sequence(sequence)
+    while currentdate > target:
+        sequence -= int(math.ceil(float(currentdate-target)/60.))
+        currentdate = date_from_sequence(sequence)
+    return int(sequence)
+
+def sequence_after_date(target, startsequence):
+    sequence = startsequence
+    currentdate = date_from_sequence(sequence)
+    while currentdate < target:
+        sequence += int(math.ceil(float(target-currentdate)/60.))
+        currentdate = date_from_sequence(sequence)
+    return int(sequence)
+    
+
+def date_from_sequence(sequence):
+    sqnStr = str(int(sequence)).zfill(9)
+    statefile = retry_open(opts.replication_url + '%s/%s/%s.state.txt' % (sqnStr[0:3], sqnStr[3:6], sqnStr[6:9]))
+
+    for line in statefile:
+        if line[0] == '#':
+                continue
+        (k, v) = line.split('=')
+        if k == 'timestamp':
+            return isoToTimestamp(v.strip().replace("\\:", ":"))
     
 if __name__ == "__main__":
     class LineArgumentParser(argparse.ArgumentParser):
@@ -73,16 +111,21 @@ if __name__ == "__main__":
     opts=parser.parse_args()
     print opts
     
-     
-    latest_state = retry_open(opts.replication_url + 'state.txt')
-    state={}
-    for line in latest_state:
+    for line in retry_open(opts.replication_url + 'state.txt'):
         if line[0] == '#':
-                continue
+            continue
         (k, v) = line.split('=')
-        state[k] = v.strip().replace("\\:", ":")
+        if k == 'sequenceNumber':
+            latest_sequence = int(v.strip())
     
-    print state
     changeset_xml = retry_open(opts.api_url + '/api/0.6/changeset/' + str(opts.changeset))
 
-    print changeset_xml.read()
+    changeset_tree = ElementTree.parse(changeset_xml)
+    for cs in changeset_tree.getroot().findall("changeset"):
+        if str(opts.changeset) == cs.get('id'):
+            break
+            
+    print_cs_info(cs)
+    
+    start_sequence = sequence_before_date(isoToTimestamp(cs.get('created_at')),latest_sequence)
+    end_sequence = sequence_after_date(isoToTimestamp(cs.get('closed_at')),start_sequence)
