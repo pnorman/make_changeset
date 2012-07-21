@@ -158,6 +158,6 @@ if __name__ == "__main__":
                         output_root.append(action_element)
                     action_element.append(object)
                 
-                
+        diff_tree.getroot().clear()        
     output_tree = ElementTree.ElementTree(output_root)
-    output_tree.write(str(opts.changeset)+'.osc')
+    output_tree.write(str(opts.changeset)+'.osc',encoding="UTF-8")
