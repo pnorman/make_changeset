@@ -37,6 +37,7 @@ import time
 import math
 import gzip
 import StringIO
+import sys
 
 opener = urllib2.build_opener()
 opener.addheaders = [('User-Agent', 'make_changeset/0.0.1')]
@@ -143,7 +144,8 @@ if __name__ == "__main__":
 
     print 'Sequence range is %d to %d' % (start_sequence, end_sequence)
     for sequence in range(start_sequence,end_sequence):
-        print 'Parsing %s'%sequence
+        print 'Parsing %s' %sequence
+        
         sqnStr = str(int(sequence)).zfill(9)
         
         diff_xml = gzip.GzipFile(fileobj=StringIO.StringIO(retry_open(opts.replication_url + '%s/%s/%s.osc.gz' % (sqnStr[0:3], sqnStr[3:6], sqnStr[6:9])).read()))
