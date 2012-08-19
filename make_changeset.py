@@ -70,19 +70,19 @@ def print_cs_info(cs):
     print 'Changeset spans ' + cs.get('created_at') + ' to ' + cs.get('closed_at')
 
 
-def sequence_before_date(target, startsequence):
+def sequence_before_date(target, startsequence, period):
     sequence = startsequence
     currentdate = date_from_sequence(sequence)
     while currentdate > target:
-        sequence -= int(math.ceil(float(currentdate-target)/60.))
+        sequence -= int(math.ceil(float(currentdate-target)/period))
         currentdate = date_from_sequence(sequence)
     return int(sequence)
 
-def sequence_after_date(target, startsequence):
+def sequence_after_date(target, startsequence, period):
     sequence = startsequence
     currentdate = date_from_sequence(sequence)
     while currentdate < target:
-        sequence += int(math.ceil(float(target-currentdate)/60.))
+        sequence += int(math.ceil(float(target-currentdate)/period))
         currentdate = date_from_sequence(sequence)
     return int(sequence)
     
@@ -99,6 +99,9 @@ def date_from_sequence(sequence):
             return isoToTimestamp(v.strip().replace("\\:", ":"))
     
 if __name__ == "__main__":
+    replicate_period = {'minute': 60.0,
+                        'hour': 60.0*60.0}
+                        #'day': 60.0*60.0*24.0} day doesn't appear to work?
     class LineArgumentParser(argparse.ArgumentParser):
         def convert_arg_line_to_args(self, arg_line):			
             if arg_line:
@@ -112,10 +115,26 @@ if __name__ == "__main__":
     
     parser.add_argument('changeset', type=int, help='The changeset to generate')
     
+    parser.add_argument('--replicate-period', choices=replicate_period.keys(), help='Force using minute, hour, or day replication diffs (default: autodetect from replicate URL, else minute)')
     parser.add_argument('--replication-url', help='Base URL of replication diffs', default='http://planet.osm.org/redaction-period/minute-replicate/')
     parser.add_argument('--api-url', help='Base URL of the API', default='http://api.openstreetmap.org/')
     parser.add_argument('--retry', help='Number of times to retry a failed download', default=5)
     opts=parser.parse_args()
+
+    # replicate period was manually set
+    if opts.replicate_period:
+        opts.replicate_period = replicate_period[opts.replicate_period]
+    # auto-detect replicate period
+    else:
+        for period in replicate_period.keys():
+            if period in opts.replication_url:
+                opts.replicate_period = replicate_period[period]
+
+    # replicate period not set, and couldn't auto-detect… full back to minutes
+    if not opts.replicate_period:
+        opts.replicate_period = replicate_period['minute']
+
+
     print opts
     
     for line in retry_open(opts.replication_url + 'state.txt'):
@@ -134,8 +153,8 @@ if __name__ == "__main__":
             
     print_cs_info(cs)
     
-    start_sequence = sequence_before_date(isoToTimestamp(cs.get('created_at')),latest_sequence)
-    end_sequence = sequence_after_date(isoToTimestamp(cs.get('closed_at')),start_sequence)
+    start_sequence = sequence_before_date(isoToTimestamp(cs.get('created_at')),latest_sequence, opts.replicate_period)
+    end_sequence = sequence_after_date(isoToTimestamp(cs.get('closed_at')),start_sequence, opts.replicate_period)
     
     output_root = ElementTree.Element('osmChange')
     output_root.set('version','0.6')
@@ -163,3 +182,4 @@ if __name__ == "__main__":
         diff_tree.getroot().clear()        
     output_tree = ElementTree.ElementTree(output_root)
     output_tree.write(str(opts.changeset)+'.osc',encoding="UTF-8")
+
