@@ -162,7 +162,7 @@ if __name__ == "__main__":
     action_element = None
 
     print 'Sequence range is %d to %d' % (start_sequence, end_sequence)
-    for sequence in range(start_sequence,end_sequence):
+    for sequence in range(start_sequence, end_sequence + 1):
         print 'Parsing %s' %sequence
         
         sqnStr = str(int(sequence)).zfill(9)
